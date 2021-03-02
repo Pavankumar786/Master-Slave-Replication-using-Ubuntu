@@ -1,0 +1,351 @@
+#####STEP 1: INSTALL MYSQL SERVER ON SERVER 1(MASTER)#######
+
+kumar@kumar-VirtualBox:~$ sudo apt-get update
+[sudo] password for kumar: 
+Hit:1 http://in.archive.ubuntu.com/ubuntu groovy InRelease                  
+Get:2 http://in.archive.ubuntu.com/ubuntu groovy-updates InRelease [115 kB] 
+Get:3 http://security.ubuntu.com/ubuntu groovy-security InRelease [110 kB]
+Get:4 http://in.archive.ubuntu.com/ubuntu groovy-backports InRelease [101 kB]
+Reading package lists... Done                                       
+E: Release file for http://in.archive.ubuntu.com/ubuntu/dists/groovy-updates/InRelease is not valid yet (invalid for another 4d 2h 36min 1s). Updates for this repository will not be applied.
+E: Release file for http://in.archive.ubuntu.com/ubuntu/dists/groovy-backports/InRelease is not valid yet (invalid for another 4d 2h 36min 21s). Updates for this repository will not be applied.
+E: Release file for http://security.ubuntu.com/ubuntu/dists/groovy-security/InRelease is not valid yet (invalid for another 4d 2h 35min 50s). Updates for this repository will not be applied.
+kumar@kumar-VirtualBox:~$ sudo apt-get install mysql-server
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+mysql-server is already the newest version (8.0.23-0ubuntu0.20.10.1).
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+
+
+#########STEP 2 EDIT MYSQL CONFIGURATION FILE ON SERVER 1#######
+
+kumar@kumar-VirtualBox:~$ sudo systemctl restart mysql
+[sudo] password for kumar: 
+kumar@kumar-VirtualBox:~$ sudo mysql -u root -p
+Enter password: 
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 9
+Server version: 8.0.23-0ubuntu0.20.10.1 (Ubuntu)
+
+Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> create user 'replication_user'@'10.0.2.15' IDENTIFIED  BY 'Pavan@970';
+Query OK, 0 rows affected (0.20 sec)
+
+mysql> GRANT REPLICATION SLAVE ON *.*TO'replication_user'@'10.0.2.15';
+Query OK, 0 rows affected (0.12 sec)
+
+mysql> show master status\G
+*************************** 1. row ***************************
+             File: binlog.000004
+         Position: 728
+     Binlog_Do_DB: 
+ Binlog_Ignore_DB: 
+Executed_Gtid_Set: 
+1 row in set (0.00 sec)
+
+mysql> sudo vim/etc/mysql/mysql.conf.d/mysqld.cnf
+    
+#######STEP 3:CREATE A NEW USER FOR REPLICATION SERVICES ON SERVER 1 ##########
+
+mysql> change master to MASTER_HOST='10.0.2.15',MASTER_USER='replication_user',MASTER_PASSWORD='Pavan@970',MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=737;
+Query OK, 0 rows affected, 8 warnings (0.08 sec)
+
+mysql> START SLAVE;
+Query OK, 0 rows affected, 1 warning (0.10 sec)
+
+mysql> CREATE DATABASE replication_db;
+Query OK, 1 row affected (0.01 sec)
+
+mysql> show databases;
++-------------------------+
+| Database                |
++-------------------------+
+| Pavan                   |
+| PavanWithMyISAM         |
+| Raj                     |
+| RajWithMyISAM           |
+| StudentRecordWithMyISAM |
+| information_schema      |
+| kumar                   |
+| mysql                   |
+| performance_schema      |
+| replication_db          |
+| sys                     |
++-------------------------+
+11 rows in set (0.14 sec)
+
+mysql> create database sahoo;
+Query OK, 1 row affected (0.12 sec)
+
+mysql> use sahoo
+Database changed
+mysql> show tables;
+Empty set (0.00 sec)
+
+mysql> create database replica_demo;
+Query OK, 1 row affected (0.04 sec)
+
+mysql> use replica_demo;
+Database changed
+mysql> create table students(id int(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY, student_name varchar(30) not null,student_age varchar(30),student_gender varchar(20));
+Query OK, 0 rows affected, 1 warning (0.37 sec)
+
+mysql> insert into students(id,student_name,student_age,student_gender)values('007','Bond','23','male');
+Query OK, 1 row affected (0.07 sec)
+
+mysql> insert into students(id,student_name,student_age,student_gender)values('008','James','24','male');
+Query OK, 1 row affected (0.16 sec)
+
+mysql> insert into students(id,student_name,student_age,student_gender)values('009','Hope','23','Female');
+Query OK, 1 row affected (0.11 sec)
+
+mysql> show tables;
++------------------------+
+| Tables_in_replica_demo |
++------------------------+
+| students               |
++------------------------+
+1 row in set (0.00 sec)
+
+mysql> select* from students;
++----+--------------+-------------+----------------+
+| id | student_name | student_age | student_gender |
++----+--------------+-------------+----------------+
+|  7 | Bond         | 23          | male           |
+|  8 | James        | 24          | male           |
+|  9 | Hope         | 23          | Female         |
++----+--------------+-------------+----------------+
+3 rows in set (0.00 sec)
+
+mysql> show slave status;
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+| Slave_IO_State       | Master_Host | Master_User      | Master_Port | Connect_Retry | Master_Log_File  | Read_Master_Log_Pos | Relay_Log_File                    | Relay_Log_Pos | Relay_Master_Log_File | Slave_IO_Running | Slave_SQL_Running | Replicate_Do_DB | Replicate_Ignore_DB | Replicate_Do_Table | Replicate_Ignore_Table | Replicate_Wild_Do_Table | Replicate_Wild_Ignore_Table | Last_Errno | Last_Error | Skip_Counter | Exec_Master_Log_Pos | Relay_Log_Space | Until_Condition | Until_Log_File | Until_Log_Pos | Master_SSL_Allowed | Master_SSL_CA_File | Master_SSL_CA_Path | Master_SSL_Cert | Master_SSL_Cipher | Master_SSL_Key | Seconds_Behind_Master | Master_SSL_Verify_Server_Cert | Last_IO_Errno | Last_IO_Error                                                                                                                                        | Last_SQL_Errno | Last_SQL_Error | Replicate_Ignore_Server_Ids | Master_Server_Id | Master_UUID | Master_Info_File        | SQL_Delay | SQL_Remaining_Delay | Slave_SQL_Running_State                                | Master_Retry_Count | Master_Bind | Last_IO_Error_Timestamp | Last_SQL_Error_Timestamp | Master_SSL_Crl | Master_SSL_Crlpath | Retrieved_Gtid_Set | Executed_Gtid_Set | Auto_Position | Replicate_Rewrite_DB | Channel_Name | Master_TLS_Version | Master_public_key_path | Get_master_public_key | Network_Namespace |
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+| Connecting to master | 10.0.2.15   | replication_user |        3306 |            60 | mysql-bin.000001 |                 737 | kumar-VirtualBox-relay-bin.000001 |             4 | mysql-bin.000001      | Connecting       | Yes               |                 |                     |                    |                        |                         |                             |          0 |            |            0 |                 737 |             156 | None            |                |             0 | No                 |                    |                    |                 |                   |                |                  NULL | No                            |          2003 | error connecting to master 'replication_user@10.0.2.15:3306' - retry-time: 60 retries: 9 message: Can't connect to MySQL server on '10.0.2.15' (111) |              0 |                |                             |                0 |             | mysql.slave_master_info |         0 |                NULL | Slave has read all relay log; waiting for more updates |              86400 |             | 210301 21:14:39         |                          |                |                    |                    |                   |             0 |                      |              |                    |                        |                     0 |                   |
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+1 row in set, 1 warning (0.02 sec)
+
+mysql> create database nagadri;
+Query OK, 1 row affected (0.12 sec)
+
+mysql> use nagadri;
+Database changed
+mysql> create table Employeerecords(Empid int,Empname varchar(30),Empage int,Empsalary float)ENGINE=INNODB;
+Query OK, 0 rows affected (0.17 sec)
+
+mysql> desc Employeerecords;
++-----------+-------------+------+-----+---------+-------+
+| Field     | Type        | Null | Key | Default | Extra |
++-----------+-------------+------+-----+---------+-------+
+| Empid     | int         | YES  |     | NULL    |       |
+| Empname   | varchar(30) | YES  |     | NULL    |       |
+| Empage    | int         | YES  |     | NULL    |       |
+| Empsalary | float       | YES  |     | NULL    |       |
++-----------+-------------+------+-----+---------+-------+
+4 rows in set (0.12 sec)
+
+mysql> insert into Employeerecords(Empid,Empname,Empage,Empsalary)values(400,'hulk',30,'25000');
+Query OK, 1 row affected (0.02 sec)
+
+mysql> insert into Employeerecords(Empid,Empname,Empage,Empsalary)values(401,'Thor',31,'26000');
+Query OK, 1 row affected (0.10 sec)
+
+mysql> insert into Employeerecords(Empid,Empname,Empage,Empsalary)values(402,'natasha',32,'27000');
+Query OK, 1 row affected (0.11 sec)
+
+mysql> select*from Employeerecords;
++-------+---------+--------+-----------+
+| Empid | Empname | Empage | Empsalary |
++-------+---------+--------+-----------+
+|   400 | hulk    |     30 |     25000 |
+|   401 | Thor    |     31 |     26000 |
+|   402 | natasha |     32 |     27000 |
++-------+---------+--------+-----------+
+3 rows in set (0.00 sec)
+
+mysql> create database apes;
+Query OK, 1 row affected (0.13 sec)
+
+mysql> use apes;
+Database changed
+mysql> create table student(id int(6) UNSIGNED AUTO_INCREMENT PRIMARY KEY, student_name varchar(30) not null,student_age varchar(30),student_gender varchar(20));
+Query OK, 0 rows affected, 1 warning (0.06 sec)
+
+mysql> insert into student(id,student_name,student_age,student_gender)values('001','Hugh','20','male');
+Query OK, 1 row affected (0.13 sec)
+
+mysql> insert into student(id,student_name,student_age,student_gender)values('002','Hike','21','male');
+Query OK, 1 row affected (0.14 sec)
+
+mysql> insert into student(id,student_name,student_age,student_gender)values('003','Hyper','22','male');
+Query OK, 1 row affected (0.02 sec)
+
+mysql> desc student;
++----------------+--------------+------+-----+---------+----------------+
+| Field          | Type         | Null | Key | Default | Extra          |
++----------------+--------------+------+-----+---------+----------------+
+| id             | int unsigned | NO   | PRI | NULL    | auto_increment |
+| student_name   | varchar(30)  | NO   |     | NULL    |                |
+| student_age    | varchar(30)  | YES  |     | NULL    |                |
+| student_gender | varchar(20)  | YES  |     | NULL    |                |
++----------------+--------------+------+-----+---------+----------------+
+4 rows in set (0.01 sec)
+
+
+mysql> select*from student;
++----+--------------+-------------+----------------+
+| id | student_name | student_age | student_gender |
++----+--------------+-------------+----------------+
+|  1 | Hugh         | 20          | male           |
+|  2 | Hike         | 21          | male           |
+|  3 | Hyper        | 22          | male           |
++----+--------------+-------------+----------------+
+3 rows in set (0.00 sec)
+
+mysql> create database BIRDS;
+Query OK, 1 row affected (0.12 sec)
+
+
+mysql> use BIRDS;
+Database changed
+mysql> create table birds(Bid int primary key,Bname varchar(30) not null)ENGINE=INNODB;
+Query OK, 0 rows affected (0.07 sec)
+
+mysql> select* from birds;
+Empty set (0.00 sec)
+
+mysql> desc birds;
++-------+-------------+------+-----+---------+-------+
+| Field | Type        | Null | Key | Default | Extra |
++-------+-------------+------+-----+---------+-------+
+| Bid   | int         | NO   | PRI | NULL    |       |
+| Bname | varchar(30) | NO   |     | NULL    |       |
++-------+-------------+------+-----+---------+-------+
+2 rows in set (0.01 sec)
+
+mysql> insert into birds(Bid,Bname)values(111,'Parrot');
+Query OK, 1 row affected (0.12 sec)
+
+mysql> insert into birds(Bid,Bname)values(112,'Peacock');
+Query OK, 1 row affected (0.04 sec)
+
+mysql> insert into birds(Bid,Bname)values(113,'Hen');
+Query OK, 1 row affected (0.11 sec)
+
+mysql> select* from birds;
++-----+---------+
+| Bid | Bname   |
++-----+---------+
+| 111 | Parrot  |
+| 112 | Peacock |
+| 113 | Hen     |
++-----+---------+
+3 rows in set (0.00 sec)
+
+mysql> RESET MASTER;
+Query OK, 0 rows affected (0.10 sec)
+
+mysql> FLUSH TABLES WITH READ LOCK;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SHOW MASTER STATUS;
++---------------+----------+--------------+------------------+-------------------+
+| File          | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
++---------------+----------+--------------+------------------+-------------------+
+| binlog.000001 |      156 |              |                  |                   |
++---------------+----------+--------------+------------------+-------------------+
+1 row in set (0.00 sec)
+
+mysql> SHOW global variables like 'GTID_EXECUTED';
++---------------+-------+
+| Variable_name | Value |
++---------------+-------+
+| gtid_executed |       |
++---------------+-------+
+1 row in set (0.03 sec)
+
+mysql> START SLAVE;
+Query OK, 0 rows affected, 2 warnings (0.00 sec)
+
+mysql> SHOW SLAVE STATUS;
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+| Slave_IO_State       | Master_Host | Master_User      | Master_Port | Connect_Retry | Master_Log_File  | Read_Master_Log_Pos | Relay_Log_File                    | Relay_Log_Pos | Relay_Master_Log_File | Slave_IO_Running | Slave_SQL_Running | Replicate_Do_DB | Replicate_Ignore_DB | Replicate_Do_Table | Replicate_Ignore_Table | Replicate_Wild_Do_Table | Replicate_Wild_Ignore_Table | Last_Errno | Last_Error | Skip_Counter | Exec_Master_Log_Pos | Relay_Log_Space | Until_Condition | Until_Log_File | Until_Log_Pos | Master_SSL_Allowed | Master_SSL_CA_File | Master_SSL_CA_Path | Master_SSL_Cert | Master_SSL_Cipher | Master_SSL_Key | Seconds_Behind_Master | Master_SSL_Verify_Server_Cert | Last_IO_Errno | Last_IO_Error                                                                                                                                         | Last_SQL_Errno | Last_SQL_Error | Replicate_Ignore_Server_Ids | Master_Server_Id | Master_UUID | Master_Info_File        | SQL_Delay | SQL_Remaining_Delay | Slave_SQL_Running_State                                | Master_Retry_Count | Master_Bind | Last_IO_Error_Timestamp | Last_SQL_Error_Timestamp | Master_SSL_Crl | Master_SSL_Crlpath | Retrieved_Gtid_Set | Executed_Gtid_Set | Auto_Position | Replicate_Rewrite_DB | Channel_Name | Master_TLS_Version | Master_public_key_path | Get_master_public_key | Network_Namespace |
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+| Connecting to master | 10.0.2.15   | replication_user |        3306 |            60 | mysql-bin.000001 |                 737 | kumar-VirtualBox-relay-bin.000001 |             4 | mysql-bin.000001      | Connecting       | Yes               |                 |                     |                    |                        |                         |                             |          0 |            |            0 |                 737 |             156 | None            |                |             0 | No                 |                    |                    |                 |                   |                |                  NULL | No                            |          2003 | error connecting to master 'replication_user@10.0.2.15:3306' - retry-time: 60 retries: 25 message: Can't connect to MySQL server on '10.0.2.15' (111) |              0 |                |                             |                0 |             | mysql.slave_master_info |         0 |                NULL | Slave has read all relay log; waiting for more updates |              86400 |             | 210301 21:30:39         |                          |                |                    |                    |                   |             0 |                      |              |                    |                        |                     0 |                   |
++----------------------+-------------+------------------+-------------+---------------+------------------+---------------------+-----------------------------------+---------------+-----------------------+------------------+-------------------+-----------------+---------------------+--------------------+------------------------+-------------------------+-----------------------------+------------+------------+--------------+---------------------+-----------------+-----------------+----------------+---------------+--------------------+--------------------+--------------------+-----------------+-------------------+----------------+-----------------------+-------------------------------+---------------+-------------------------------------------------------------------------------------------------------------------------------------------------------+----------------+----------------+-----------------------------+------------------+-------------+-------------------------+-----------+---------------------+--------------------------------------------------------+--------------------+-------------+-------------------------+--------------------------+----------------+--------------------+--------------------+-------------------+---------------+----------------------+--------------+--------------------+------------------------+-----------------------+-------------------+
+1 row in set, 1 warning (0.01 sec)
+
+mysql> SHOW SLAVE STATUS\G
+*************************** 1. row ***************************
+               Slave_IO_State: Connecting to master
+                  Master_Host: 10.0.2.15
+                  Master_User: replication_user
+                  Master_Port: 3306
+                Connect_Retry: 60
+              Master_Log_File: mysql-bin.000001
+          Read_Master_Log_Pos: 737
+               Relay_Log_File: kumar-VirtualBox-relay-bin.000001
+                Relay_Log_Pos: 4
+        Relay_Master_Log_File: mysql-bin.000001
+             Slave_IO_Running: Connecting
+            Slave_SQL_Running: Yes
+              Replicate_Do_DB: 
+          Replicate_Ignore_DB: 
+           Replicate_Do_Table: 
+       Replicate_Ignore_Table: 
+      Replicate_Wild_Do_Table: 
+  Replicate_Wild_Ignore_Table: 
+                   Last_Errno: 0
+                   Last_Error: 
+                 Skip_Counter: 0
+          Exec_Master_Log_Pos: 737
+              Relay_Log_Space: 156
+              Until_Condition: None
+               Until_Log_File: 
+                Until_Log_Pos: 0
+           Master_SSL_Allowed: No
+           Master_SSL_CA_File: 
+           Master_SSL_CA_Path: 
+              Master_SSL_Cert: 
+            Master_SSL_Cipher: 
+               Master_SSL_Key: 
+        Seconds_Behind_Master: NULL
+Master_SSL_Verify_Server_Cert: No
+                Last_IO_Errno: 2003
+                Last_IO_Error: error connecting to master 'replication_user@10.0.2.15:3306' - retry-time: 60 retries: 25 message: Can't connect to MySQL server on '10.0.2.15' (111)
+               Last_SQL_Errno: 0
+               Last_SQL_Error: 
+  Replicate_Ignore_Server_Ids: 
+             Master_Server_Id: 0
+                  Master_UUID: 
+             Master_Info_File: mysql.slave_master_info
+                    SQL_Delay: 0
+          SQL_Remaining_Delay: NULL
+      Slave_SQL_Running_State: Slave has read all relay log; waiting for more updates
+           Master_Retry_Count: 86400
+                  Master_Bind: 
+      Last_IO_Error_Timestamp: 210301 21:30:39
+     Last_SQL_Error_Timestamp: 
+               Master_SSL_Crl: 
+           Master_SSL_Crlpath: 
+           Retrieved_Gtid_Set: 
+            Executed_Gtid_Set: 
+                Auto_Position: 0
+         Replicate_Rewrite_DB: 
+                 Channel_Name: 
+           Master_TLS_Version: 
+       Master_public_key_path: 
+        Get_master_public_key: 0
+            Network_Namespace: 
+1 row in set, 1 warning (0.01 sec)
+
+mysql> 
+
